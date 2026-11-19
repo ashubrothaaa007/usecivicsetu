@@ -96,6 +96,11 @@ export async function runGeminiAnalysis(
     throw new Error('GEMINI_API_KEY is not configured on the backend.');
   }
 
+  // Security: Guard against excessively large payloads (> 10MB base64) to prevent memory exhaustion
+  if (!imageBase64 || typeof imageBase64 !== 'string' || imageBase64.length > 10000000) {
+    throw new Error('Invalid image payload or file size exceeds maximum 10MB limit.');
+  }
+
   // Validate allowed MIME types
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
   const sanitizedMime = allowedMimeTypes.includes(mimeType) ? mimeType : 'image/jpeg';
@@ -118,7 +123,7 @@ export async function runGeminiAnalysis(
     'gemini-flash-latest',
   ];
 
-  let lastError: any = null;
+  let lastError: Error | null = null;
 
   for (const model of models) {
     try {
@@ -131,7 +136,7 @@ export async function runGeminiAnalysis(
               { text: SYSTEM_PROMPT },
               {
                 inline_data: {
-                  mime_type: mimeType || 'image/jpeg',
+                  mime_type: sanitizedMime,
                   data: cleanBase64,
                 },
               },
@@ -165,7 +170,13 @@ export async function runGeminiAnalysis(
         continue;
       }
 
-      const json = await response.json();
+      const json = await response.json() as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{ text?: string }>;
+          };
+        }>;
+      };
       const parts = json.candidates?.[0]?.content?.parts || [];
 
       // Find the JSON part
@@ -197,16 +208,33 @@ export async function runGeminiAnalysis(
       if (typeof parsed.confidence !== 'number') parsed.confidence = 0.9;
 
       return parsed;
-    } catch (err: any) {
-      console.warn(`Model ${model} attempt failed:`, err.message || err);
-      lastError = err;
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.warn(`Model ${model} attempt failed:`, errorMsg);
+      lastError = err instanceof Error ? err : new Error(errorMsg);
     }
   }
 
   throw lastError || new Error('Failed to analyze photograph with Gemini.');
 }
 
-export default async function handler(req: any, res: any) {
+interface ApiRequest {
+  method?: string;
+  body?: {
+    image?: string;
+    mimeType?: string;
+  };
+}
+
+interface ApiResponse {
+  setHeader: (key: string, value: string) => void;
+  status: (code: number) => {
+    json: (body: unknown) => void;
+    end: () => void;
+  };
+}
+
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -228,10 +256,9 @@ export default async function handler(req: any, res: any) {
 
     const result = await runGeminiAnalysis(image, mimeType || 'image/jpeg');
     return res.status(200).json({ ok: true, data: result });
-  } catch (error: any) {
-    console.error('Garbage analysis backend error:', error);
-    return res.status(500).json({
-      error: error.message || 'Internal server error during image analysis.',
-    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Internal server error during image analysis.';
+    console.error('Garbage analysis backend error:', message);
+    return res.status(500).json({ error: message });
   }
 }

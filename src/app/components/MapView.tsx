@@ -350,17 +350,23 @@ export function MapView({ severityFilter, statusFilter, selectedComplaintId }: M
         <div
           className="absolute flex flex-col gap-1.5"
           style={{ right: 12, bottom: 80, zIndex: 400 }}
+          role="group"
+          aria-label="Map zoom controls"
         >
           <button
+            type="button"
             onClick={handleZoomIn}
-            className="w-10 h-10 bg-white rounded-xl flex items-center justify-center"
+            aria-label="Zoom in on map"
+            className="w-10 h-10 bg-white rounded-xl flex items-center justify-center transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.14)', border: '1px solid rgba(0,0,0,0.08)' }}
           >
             <ZoomIn size={17} color="#374151" />
           </button>
           <button
+            type="button"
             onClick={handleZoomOut}
-            className="w-10 h-10 bg-white rounded-xl flex items-center justify-center"
+            aria-label="Zoom out on map"
+            className="w-10 h-10 bg-white rounded-xl flex items-center justify-center transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.14)', border: '1px solid rgba(0,0,0,0.08)' }}
           >
             <ZoomOut size={17} color="#374151" />
@@ -371,8 +377,10 @@ export function MapView({ severityFilter, statusFilter, selectedComplaintId }: M
       {/* Refresh button */}
       {!loading && (
         <button
+          type="button"
           onClick={refreshComplaints}
-          className="absolute flex items-center justify-center rounded-full bg-white"
+          aria-label="Refresh live complaints from server"
+          className="absolute flex items-center justify-center rounded-full bg-white transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           style={{
             bottom: 16, left: 12,
             width: 42, height: 42,
@@ -389,8 +397,10 @@ export function MapView({ severityFilter, statusFilter, selectedComplaintId }: M
       {/* GPS button */}
       {!loading && (
         <button
+          type="button"
           onClick={handleGPS}
-          className="absolute flex items-center justify-center rounded-full"
+          aria-label="Find and center my GPS location"
+          className="absolute flex items-center justify-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500"
           style={{
             bottom: 16, right: 12,
             width: 46, height: 46,

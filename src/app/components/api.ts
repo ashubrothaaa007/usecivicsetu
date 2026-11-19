@@ -72,7 +72,8 @@ export interface GarbageAnalysisResult {
 }
 
 async function directGeminiFallback(base64Image: string, mimeType = 'image/jpeg'): Promise<GarbageAnalysisResult> {
-  const apiKey = ((import.meta as any).env?.VITE_GEMINI_API_KEY || '').trim();
+  const envKey = (import.meta as unknown as { env?: { VITE_GEMINI_API_KEY?: string } }).env?.VITE_GEMINI_API_KEY;
+  const apiKey = (envKey || '').trim();
   if (!apiKey) {
     throw new Error('Gemini AI backend service is unreachable. Please verify server connectivity or configure GEMINI_API_KEY on the backend.');
   }
@@ -104,7 +105,7 @@ Evaluate strictly and objectively:
 }`;
 
   const models = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'];
-  let lastErr: any = null;
+  let lastErr: Error | null = null;
 
   for (const m of models) {
     try {
@@ -130,7 +131,13 @@ Evaluate strictly and objectively:
         continue;
       }
 
-      const json = await res.json();
+      const json = await res.json() as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{ text?: string }>;
+          };
+        }>;
+      };
       const parts = json.candidates?.[0]?.content?.parts || [];
       let rawText = '';
       for (const p of parts) {
@@ -152,8 +159,8 @@ Evaluate strictly and objectively:
       if (!parsed.observation) parsed.observation = parsed.garbageDetected === 'Yes' ? 'Garbage detected.' : 'No garbage detected.';
       if (typeof parsed.confidence !== 'number') parsed.confidence = 0.9;
       return parsed as GarbageAnalysisResult;
-    } catch (e) {
-      lastErr = e;
+    } catch (e: unknown) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
     }
   }
 

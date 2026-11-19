@@ -6,7 +6,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "test": "node --test tests/**/*.test.mjs"
+    "test": "node --test tests/"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "1.2.3",

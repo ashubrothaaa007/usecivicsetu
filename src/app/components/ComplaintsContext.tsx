@@ -1,5 +1,5 @@
 // ——— Global complaints context — real-time via Supabase Realtime + polling fallback ———
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { Complaint, Status, computeWorstWardsFromList, WorstWard } from './data';
@@ -71,9 +71,6 @@ export function ComplaintsProvider({ children }: { children: React.ReactNode }) 
 
   // ── Supabase Realtime subscription ────────────────────────────────────────
   // Subscribes to all INSERT / UPDATE changes on the kv_store table.
-  // When another device posts a complaint the server writes to kv_store →
-  // Postgres fires a change event → Supabase pushes it via websocket →
-  // this callback fires immediately on every connected device → refresh().
   useEffect(() => {
     const channel = supabase
       .channel('kv-complaints-realtime')
@@ -86,16 +83,14 @@ export function ComplaintsProvider({ children }: { children: React.ReactNode }) 
         },
         (payload) => {
           // Only react to complaint keys to avoid noise from other KV entries
-          const key: string = (payload.new as any)?.key || (payload.old as any)?.key || '';
+          const record = (payload.new || payload.old) as { key?: string } | null;
+          const key: string = record?.key || '';
           if (key.startsWith('civicsetu:complaint:') || key.startsWith('nammaooru:complaint:')) {
-            console.log('Realtime event received:', payload.eventType, key);
             refresh();
           }
         }
       )
-      .subscribe((status) => {
-        console.log('Supabase Realtime status:', status);
-      });
+      .subscribe();
 
     channelRef.current = channel;
 
@@ -105,10 +100,10 @@ export function ComplaintsProvider({ children }: { children: React.ReactNode }) 
     };
   }, [refresh]);
 
-  // ── Polling fallback — every 8 s ─────────────────────────────────────────
-  // Acts as a safety net if the websocket drops or Realtime is unavailable.
+  // ── Polling fallback — every 8 s (paused when page hidden) ────────────────
   useEffect(() => {
     intervalRef.current = setInterval(() => {
+      if (document.hidden) return; // Skip polling when tab is inactive to preserve resources
       refresh();
     }, 8000);
     return () => {
@@ -135,7 +130,6 @@ export function ComplaintsProvider({ children }: { children: React.ReactNode }) 
       await apiPostComplaint(c);
 
       // 3. Pull fresh server state so our copy is canonical
-      //    (Realtime will trigger refresh on other devices automatically)
       await refresh();
 
       window.dispatchEvent(new CustomEvent('civicsetu:newreport', { detail: c }));
@@ -155,31 +149,34 @@ export function ComplaintsProvider({ children }: { children: React.ReactNode }) 
 
       await apiPatchStatus(id, status);
 
-      // Sync canonical state (Realtime handles other devices)
+      // Sync canonical state
       await refresh();
 
       window.dispatchEvent(new CustomEvent('civicsetu:statusupdate'));
     } catch (e) {
       console.error('updateStatus error:', e);
-      // Revert
       await refresh();
       throw e;
     }
   }, [refresh]);
 
-  const worstWards = computeWorstWardsFromList(complaints);
+  // Memoize worst wards computation to avoid unnecessary recalculations
+  const worstWards = useMemo(() => computeWorstWardsFromList(complaints), [complaints]);
+
+  // Memoize context value to eliminate cascading re-renders across consumers
+  const contextValue = useMemo(() => ({
+    complaints,
+    loading,
+    error,
+    addComplaint,
+    updateStatus,
+    refresh,
+    worstWards,
+    lastSynced,
+  }), [complaints, loading, error, addComplaint, updateStatus, refresh, worstWards, lastSynced]);
 
   return (
-    <ComplaintsContext.Provider value={{
-      complaints,
-      loading,
-      error,
-      addComplaint,
-      updateStatus,
-      refresh,
-      worstWards,
-      lastSynced,
-    }}>
+    <ComplaintsContext.Provider value={contextValue}>
       {children}
     </ComplaintsContext.Provider>
   );

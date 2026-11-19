@@ -1655,6 +1655,7 @@ export function HomeScreen() {
           <button
             type="button"
             onClick={() => setShowQRModal(true)}
+            aria-label={t.scanQrToReport}
             style={{
               flex: 1,
               display: 'flex',
@@ -1683,6 +1684,7 @@ export function HomeScreen() {
           <button
             type="button"
             onClick={() => navigate('/report')}
+            aria-label={t.reportGarbage}
             style={{
               flex: 1,
               display: 'flex',
@@ -1709,6 +1711,7 @@ export function HomeScreen() {
           type="button"
           onClick={() => navigate('/worst-wards')}
           title={t.leaderboardTitle}
+          aria-label={t.leaderboardTitle}
           style={{
             width: 52,
             height: 48,
